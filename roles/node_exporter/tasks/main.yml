@@ -56,7 +56,67 @@
       ansible.builtin.set_fact:
         node_exporter_expected_checksums: >-
           {{ node_exporter_checksums.content |
-             regex_findall('(?m)^([a-fA-F0-9]{64})\\s+\\*?' ~ node_exporter_archive | regex_escape ~ '$') }}
+             regex_findall('(?m)^([a-fA-F0-9]{64})[ *]+' ~ (node_exporter_archive | regex_escape) ~ ' }}
+
+    - name: Verify checksum is listed by upstream
+      ansible.builtin.assert:
+        that:
+          - node_exporter_expected_checksums | length == 1
+        fail_msg: "Could not find an unambiguous SHA256 for {{ node_exporter_archive }}"
+
+    - name: Create temporary extraction directory
+      ansible.builtin.tempfile:
+        state: directory
+        suffix: node_exporter
+      register: node_exporter_tempdir
+
+    - name: Download and install verified node_exporter binary
+      block:
+        - name: Download official node_exporter archive
+          ansible.builtin.get_url:
+            url: "{{ node_exporter_release_url }}/{{ node_exporter_archive }}"
+            dest: "{{ node_exporter_tempdir.path }}/{{ node_exporter_archive }}"
+            checksum: "sha256:{{ node_exporter_expected_checksums[0] }}"
+            mode: "0644"
+
+        - name: Extract node_exporter archive
+          ansible.builtin.unarchive:
+            src: "{{ node_exporter_tempdir.path }}/{{ node_exporter_archive }}"
+            dest: "{{ node_exporter_tempdir.path }}"
+            remote_src: true
+
+        - name: Install node_exporter executable
+          ansible.builtin.copy:
+            src: "{{ node_exporter_tempdir.path }}/node_exporter-{{ node_exporter_version }}.linux-{{ node_exporter_arch_map[ansible_facts['architecture']] }}/node_exporter"
+            dest: "{{ node_exporter_binary_path }}"
+            remote_src: true
+            owner: root
+            group: root
+            mode: "0755"
+          notify: Restart node_exporter
+      always:
+        - name: Delete temporary extraction directory
+          ansible.builtin.file:
+            path: "{{ node_exporter_tempdir.path }}"
+            state: absent
+          when: node_exporter_tempdir.path is defined
+
+- name: Install node_exporter systemd unit
+  ansible.builtin.template:
+    src: node_exporter.service.j2
+    dest: /etc/systemd/system/node_exporter.service
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart node_exporter
+
+- name: Enable and start node_exporter
+  ansible.builtin.systemd_service:
+    name: node_exporter
+    enabled: true
+    state: started
+    daemon_reload: true
+) }}
 
     - name: Verify checksum is listed by upstream
       ansible.builtin.assert:
