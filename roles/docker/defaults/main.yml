@@ -1,0 +1,14 @@
+---
+# Empty means follow the latest available release in Docker's stable APT channel.
+# For reproducible upgrades, set the full APT version shown by:
+#   apt-cache madison docker-ce
+# Example: "5:29.9.3-1~ubuntu.26.04~resolute" (only if that version is listed).
+docker_apt_version: ""
+
+# Defaults to the SSH login user. Override for additional users:
+# docker_users: [ubuntu, deploy]
+docker_users: "{{ [ansible_user | default(ansible_ssh_user | default(ansible_facts['user_id']))] }}"
+docker_repository_url: https://download.docker.com/linux/ubuntu
+docker_apt_arch_map:
+  x86_64: amd64
+  aarch64: arm64

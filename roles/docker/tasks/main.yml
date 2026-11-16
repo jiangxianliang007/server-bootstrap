@@ -1,0 +1,113 @@
+---
+- name: Check Docker target platform
+  ansible.builtin.assert:
+    that:
+      - ansible_facts['distribution'] == 'Ubuntu'
+      - ansible_facts['distribution_version'] in ['22.04', '24.04', '26.04', '26.10']
+      - ansible_facts['architecture'] in docker_apt_arch_map
+      - ansible_facts['service_mgr'] == 'systemd'
+    fail_msg: "This Docker role requires Ubuntu 22.04/24.04/26.04/26.10 on amd64 or arm64 with systemd."
+
+- name: Find conflicting distribution Docker packages
+  ansible.builtin.package_facts:
+    manager: apt
+
+- name: Reject packages that conflict with official Docker packages
+  ansible.builtin.assert:
+    that:
+      - >-
+        (['docker.io', 'docker-compose', 'docker-compose-v2',
+          'docker-doc', 'docker-buildx', 'podman-docker',
+          'containerd', 'runc'] |
+         intersect(ansible_facts.packages.keys() | list) | length) == 0
+    fail_msg: >-
+      Conflicting distribution packages were detected. Review and remove the
+      conflicting packages manually before switching to Docker's official
+      repository. This role intentionally does not uninstall running Docker
+      or containerd packages automatically.
+
+- name: Install Docker repository prerequisites
+  ansible.builtin.apt:
+    name:
+      - ca-certificates
+    state: present
+    update_cache: true
+
+- name: Create APT keyrings directory
+  ansible.builtin.file:
+    path: /etc/apt/keyrings
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Install official Docker repository signing key
+  ansible.builtin.get_url:
+    url: "{{ docker_repository_url }}/gpg"
+    dest: /etc/apt/keyrings/docker.asc
+    owner: root
+    group: root
+    mode: "0644"
+    force: false
+  register: docker_repository_key
+
+- name: Configure Docker stable repository (deb822)
+  ansible.builtin.template:
+    src: docker.sources.j2
+    dest: /etc/apt/sources.list.d/docker.sources
+    owner: root
+    group: root
+    mode: "0644"
+  register: docker_repository_source
+
+- name: Refresh APT cache after adding Docker repository
+  ansible.builtin.apt:
+    update_cache: true
+  when: docker_repository_key.changed or docker_repository_source.changed
+
+- name: Install or upgrade official Docker packages
+  ansible.builtin.apt:
+    name: >-
+      {{
+        ([
+          'docker-ce=' ~ docker_apt_version,
+          'docker-ce-cli=' ~ docker_apt_version,
+          'containerd.io',
+          'docker-buildx-plugin',
+          'docker-compose-plugin'
+        ] if docker_apt_version | length > 0 else [
+          'docker-ce',
+          'docker-ce-cli',
+          'containerd.io',
+          'docker-buildx-plugin',
+          'docker-compose-plugin'
+        ])
+      }}
+    state: "{{ 'present' if docker_apt_version | length > 0 else 'latest' }}"
+    update_cache: true
+  # An APT-managed upgrade may restart Docker; schedule upgrades accordingly.
+
+- name: Ensure docker group exists
+  ansible.builtin.group:
+    name: docker
+    state: present
+
+- name: Allow SSH login user(s) to access Docker
+  ansible.builtin.user:
+    name: "{{ item }}"
+    groups: docker
+    append: true
+  loop: "{{ docker_users }}"
+  when: item | length > 0 and item != 'root'
+
+- name: Enable and start Docker service
+  ansible.builtin.systemd_service:
+    name: docker
+    enabled: true
+    state: started
+
+- name: Enable and start containerd service
+  ansible.builtin.systemd_service:
+    name: containerd
+    enabled: true
+    state: started
