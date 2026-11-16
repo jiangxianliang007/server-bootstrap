@@ -1,0 +1,9 @@
+---
+nginx_version: "1.30.6"
+# Existing installations are left untouched unless an upgrade is explicitly requested.
+nginx_upgrade: false
+nginx_prefix: /usr/local/nginx
+nginx_source_url: "https://nginx.org/download/nginx-{{ nginx_version }}.tar.gz"
+# Optionally pin a trusted upstream source archive SHA256.
+nginx_source_sha256: ""
+nginx_configure_extra_args: []

@@ -8,3 +8,6 @@
 
     - role: docker
       tags: [docker]
+
+    - role: nginx
+      tags: [nginx]
