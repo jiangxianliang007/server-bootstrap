@@ -132,3 +132,38 @@ id -nG ubuntu
 - If Ubuntu distribution Docker/containerd packages are installed, the role **stops** rather than forcibly uninstalling existing services. Review package conflicts manually first.
 - Explicit Docker Engine upgrades can restart the daemon; schedule changes on production hosts appropriately.\n- Ubuntu releases newer than 26.04 must have a published Docker stable repository for their codename; otherwise APT will fail rather than falling back to an older Ubuntu release.
 - Docker-published container ports can bypass parts of UFW/firewalld policy; review security groups and the `DOCKER-USER` firewall chain.
+
+## Nginx source build (Ubuntu 26.04+)
+
+Installs **nginx 1.30.6** from the official nginx.org source tarball into `/usr/local/nginx`. Builds support for HTTP TLS, HTTP/2, real IP, gzip_static, status and TCP/UDP stream proxying with TLS/SNI preread.
+
+```bash
+ansible-playbook -i inventory/hosts.ini site.yml --tags nginx
+```
+
+The role installs `build-essential`, `libpcre2-dev`, `libssl-dev`, and `zlib1g-dev`, compiles Nginx, creates a systemd service and enables it at boot. The default Nginx configuration lives in `/usr/local/nginx/conf/nginx.conf`. **Existing Nginx installations are not upgraded by default.** An initial installation creates the stock upstream configuration. Changing the binary does not automatically edit your existing configuration.
+
+To explicitly upgrade to a published version, set both the target version and `nginx_upgrade=true`:
+
+```bash
+ansible-playbook -i inventory/hosts.ini site.yml --tags nginx \
+  -e nginx_version=1.30.6 -e nginx_upgrade=true
+```
+
+Use a *newer published version* for actual upgrades; the command above demonstrates the syntax. The role checks the installed binary version and only recompiles if different. During an upgrade it tests the new binary against the existing config before replacing the executable, keeps an Ansible backup of the previous binary, and restarts nginx via systemd to activate the new version. The upgrade deliberately does **not** run `make install`, so it does not overwrite existing `nginx.conf` or other installation configuration. Plan a maintenance window for any restart.
+
+Additional compile flags can be supplied via `nginx_configure_extra_args`. For example, add `--with-http_auth_request_module` only if your configuration uses `auth_request`.
+
+For strict source integrity checking, provide the independently verified source archive SHA256 with `nginx_source_sha256`. Otherwise the archive is downloaded over HTTPS without a pinned digest. The initial Nginx configuration may use port 80; ensure it does not conflict with an existing web server or Docker port mappings.
+
+```bash
+/usr/local/nginx/sbin/nginx -V
+/usr/local/nginx/sbin/nginx -t
+systemctl status nginx
+```
+
+To run selected roles together:
+
+```bash
+ansible-playbook -i inventory/hosts.ini site.yml --tags node_exporter,docker,nginx
+```

@@ -1,0 +1,19 @@
+[Unit]
+Description=Nginx Web Server
+After=network.target
+
+[Service]
+Type=forking
+PIDFile={{ nginx_prefix }}/logs/nginx.pid
+ExecStartPre={{ nginx_prefix }}/sbin/nginx -t
+ExecStart={{ nginx_prefix }}/sbin/nginx
+ExecReload={{ nginx_prefix }}/sbin/nginx -t
+ExecReload=/bin/kill -HUP $MAINPID
+ExecStop={{ nginx_prefix }}/sbin/nginx -s quit
+KillSignal=SIGQUIT
+TimeoutStopSec=30
+PrivateTmp=true
+LimitNOFILE=65535
+
+[Install]
+WantedBy=multi-user.target
