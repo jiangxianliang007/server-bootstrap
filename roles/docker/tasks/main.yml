@@ -85,7 +85,9 @@
       }}
     state: present
     update_cache: true
-  # With no explicit version, state=present installs missing packages at the\n  # latest available stable version but leaves existing package versions intact.\n  # Providing docker_apt_version requests an Engine/CLI version change.
+  # With no explicit version, state=present installs missing packages at the
+  # latest available stable version but leaves existing package versions intact.
+  # Providing docker_apt_version requests an Engine/CLI version change.
 
 - name: Ensure docker group exists
   ansible.builtin.group:
