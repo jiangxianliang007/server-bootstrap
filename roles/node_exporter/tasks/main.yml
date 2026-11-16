@@ -56,7 +56,7 @@
       ansible.builtin.set_fact:
         node_exporter_expected_checksums: >-
           {{ node_exporter_checksums.content |
-             regex_findall('(?m)^([a-fA-F0-9]{64})[ *]+' ~ (node_exporter_archive | regex_escape) ~ ' }}
+             regex_findall('(?m)^([a-fA-F0-9]{64})[ *]+' ~ (node_exporter_archive | regex_escape) ~ '$') }}
 
     - name: Verify checksum is listed by upstream
       ansible.builtin.assert:
