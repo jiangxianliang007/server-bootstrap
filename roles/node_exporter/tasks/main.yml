@@ -1,0 +1,118 @@
+---
+- name: Validate supported Linux architecture
+  ansible.builtin.assert:
+    that:
+      - ansible_facts['system'] == 'Linux'
+      - ansible_facts['architecture'] in node_exporter_arch_map
+    fail_msg: "node_exporter role supports Linux x86_64 and aarch64 only."
+
+- name: Configure node_exporter release variables
+  ansible.builtin.set_fact:
+    node_exporter_archive: "node_exporter-{{ node_exporter_version }}.linux-{{ node_exporter_arch_map[ansible_facts['architecture']] }}.tar.gz"
+    node_exporter_release_url: "https://github.com/prometheus/node_exporter/releases/download/v{{ node_exporter_version }}"
+
+- name: Ensure node_exporter group exists
+  ansible.builtin.group:
+    name: "{{ node_exporter_group }}"
+    system: true
+    state: present
+
+- name: Ensure node_exporter user exists
+  ansible.builtin.user:
+    name: "{{ node_exporter_user }}"
+    group: "{{ node_exporter_group }}"
+    system: true
+    shell: /usr/sbin/nologin
+    create_home: false
+    state: present
+
+- name: Check installed node_exporter
+  ansible.builtin.stat:
+    path: "{{ node_exporter_binary_path }}"
+  register: node_exporter_binary
+
+- name: Read installed node_exporter version
+  ansible.builtin.command:
+    argv:
+      - "{{ node_exporter_binary_path }}"
+      - --version
+  register: node_exporter_installed_version
+  changed_when: false
+  when: node_exporter_binary.stat.exists
+
+- name: Install or upgrade node_exporter
+  when: >-
+    not node_exporter_binary.stat.exists or
+    ('version ' ~ node_exporter_version) not in
+    (node_exporter_installed_version.stdout | default(''))
+  block:
+    - name: Fetch official release checksums
+      ansible.builtin.uri:
+        url: "{{ node_exporter_release_url }}/sha256sums.txt"
+        return_content: true
+      register: node_exporter_checksums
+
+    - name: Extract checksum for this architecture
+      ansible.builtin.set_fact:
+        node_exporter_expected_checksums: >-
+          {{ node_exporter_checksums.content |
+             regex_findall('(?m)^([a-fA-F0-9]{64})\\s+\\*?' ~ node_exporter_archive | regex_escape ~ '$') }}
+
+    - name: Verify checksum is listed by upstream
+      ansible.builtin.assert:
+        that:
+          - node_exporter_expected_checksums | length == 1
+        fail_msg: "Could not find an unambiguous SHA256 for {{ node_exporter_archive }}"
+
+    - name: Create temporary extraction directory
+      ansible.builtin.tempfile:
+        state: directory
+        suffix: node_exporter
+      register: node_exporter_tempdir
+
+    - name: Download and install verified node_exporter binary
+      block:
+        - name: Download official node_exporter archive
+          ansible.builtin.get_url:
+            url: "{{ node_exporter_release_url }}/{{ node_exporter_archive }}"
+            dest: "{{ node_exporter_tempdir.path }}/{{ node_exporter_archive }}"
+            checksum: "sha256:{{ node_exporter_expected_checksums[0] }}"
+            mode: "0644"
+
+        - name: Extract node_exporter archive
+          ansible.builtin.unarchive:
+            src: "{{ node_exporter_tempdir.path }}/{{ node_exporter_archive }}"
+            dest: "{{ node_exporter_tempdir.path }}"
+            remote_src: true
+
+        - name: Install node_exporter executable
+          ansible.builtin.copy:
+            src: "{{ node_exporter_tempdir.path }}/node_exporter-{{ node_exporter_version }}.linux-{{ node_exporter_arch_map[ansible_facts['architecture']] }}/node_exporter"
+            dest: "{{ node_exporter_binary_path }}"
+            remote_src: true
+            owner: root
+            group: root
+            mode: "0755"
+          notify: Restart node_exporter
+      always:
+        - name: Delete temporary extraction directory
+          ansible.builtin.file:
+            path: "{{ node_exporter_tempdir.path }}"
+            state: absent
+          when: node_exporter_tempdir.path is defined
+
+- name: Install node_exporter systemd unit
+  ansible.builtin.template:
+    src: node_exporter.service.j2
+    dest: /etc/systemd/system/node_exporter.service
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart node_exporter
+
+- name: Enable and start node_exporter
+  ansible.builtin.systemd_service:
+    name: node_exporter
+    enabled: true
+    state: started
+    daemon_reload: true
