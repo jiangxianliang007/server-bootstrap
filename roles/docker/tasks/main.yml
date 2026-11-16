@@ -3,10 +3,10 @@
   ansible.builtin.assert:
     that:
       - ansible_facts['distribution'] == 'Ubuntu'
-      - ansible_facts['distribution_version'] in ['22.04', '24.04', '26.04', '26.10']
+      - ansible_facts['distribution_version'] is version('26.04', '>=')
       - ansible_facts['architecture'] in docker_apt_arch_map
       - ansible_facts['service_mgr'] == 'systemd'
-    fail_msg: "This Docker role requires Ubuntu 22.04/24.04/26.04/26.10 on amd64 or arm64 with systemd."
+    fail_msg: "This Docker role requires Ubuntu 26.04 or newer on amd64 or arm64 with systemd."
 
 - name: Find conflicting distribution Docker packages
   ansible.builtin.package_facts:
@@ -65,7 +65,7 @@
     update_cache: true
   when: docker_repository_key.changed or docker_repository_source.changed
 
-- name: Install or upgrade official Docker packages
+- name: Install official Docker packages or apply an explicitly requested version
   ansible.builtin.apt:
     name: >-
       {{
@@ -83,9 +83,9 @@
           'docker-compose-plugin'
         ])
       }}
-    state: "{{ 'present' if docker_apt_version | length > 0 else 'latest' }}"
+    state: present
     update_cache: true
-  # An APT-managed upgrade may restart Docker; schedule upgrades accordingly.
+  # With no explicit version, state=present installs missing packages at the\n  # latest available stable version but leaves existing package versions intact.\n  # Providing docker_apt_version requests an Engine/CLI version change.
 
 - name: Ensure docker group exists
   ansible.builtin.group:
