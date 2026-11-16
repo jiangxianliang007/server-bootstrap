@@ -1,5 +1,5 @@
 ---
-# Empty means follow the latest available release in Docker's stable APT channel.
+# Empty: install latest stable packages on first run, but never proactively\n# upgrade installed Docker packages during subsequent playbook runs.\n# Set a full Docker Engine/CLI APT version to explicitly request an upgrade.
 # For reproducible upgrades, set the full APT version shown by:
 #   apt-cache madison docker-ce
 # Example: "5:29.9.3-1~ubuntu.26.04~resolute" (only if that version is listed).
