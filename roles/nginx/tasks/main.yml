@@ -126,6 +126,15 @@
             state: absent
           when: nginx_build_dir.path is defined
 
+- name: Make nginx available on PATH via /usr/local/bin
+  ansible.builtin.file:
+    src: "{{ nginx_prefix }}/sbin/nginx"
+    dest: /usr/local/bin/nginx
+    state: link
+    owner: root
+    group: root
+    force: false
+
 - name: Install Nginx systemd service
   ansible.builtin.template:
     src: nginx.service.j2
