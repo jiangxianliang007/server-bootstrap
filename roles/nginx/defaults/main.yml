@@ -1,5 +1,5 @@
 ---
-nginx_version: "1.30.7"
+nginx_version: "1.30.8"
 # Existing installations are left untouched unless an upgrade is explicitly requested.
 nginx_upgrade: false
 nginx_prefix: /usr/local/nginx
