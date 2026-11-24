@@ -135,7 +135,7 @@ id -nG ubuntu
 
 ## Nginx source build (Ubuntu 26.04+)
 
-Installs **nginx 1.30.7** from the official nginx.org source tarball into `/usr/local/nginx`. Builds support for HTTP TLS, HTTP/2, real IP, gzip_static, status and TCP/UDP stream proxying with TLS/SNI preread.
+Installs **nginx 1.30.8** from the official nginx.org source tarball into `/usr/local/nginx`. Builds support for HTTP TLS, HTTP/2, real IP, gzip_static, status and TCP/UDP stream proxying with TLS/SNI preread.
 
 ```bash
 ansible-playbook -i inventory/hosts.ini site.yml --tags nginx
@@ -147,7 +147,7 @@ To explicitly upgrade to a published version, set both the target version and `n
 
 ```bash
 ansible-playbook -i inventory/hosts.ini site.yml --tags nginx \
-  -e nginx_version=1.30.7 -e nginx_upgrade=true
+  -e nginx_version=1.30.8 -e nginx_upgrade=true
 ```
 
 Use a *newer published version* for actual upgrades; the command above demonstrates the syntax. The role checks the installed binary version and only recompiles if different. During an upgrade it tests the new binary against the existing config before replacing the executable, keeps an Ansible backup of the previous binary, and restarts nginx via systemd to activate the new version. The upgrade deliberately does **not** run `make install`, so it does not overwrite existing `nginx.conf` or other installation configuration. Plan a maintenance window for any restart.
